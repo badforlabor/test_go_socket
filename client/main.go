@@ -11,6 +11,7 @@ import (
 
 var closeSessionSignal chan int
 var hideConsoleMsg bool
+var freqMsg = 5
 
 func init() {
 	closeSessionSignal = make(chan int)
@@ -23,11 +24,13 @@ func main() {
 	delay := flag.Int("delay", 10, "延迟启动下一个连接（毫秒）")
 	ip := flag.String("ip", "127.0.0.1", "服务器IP")
 	hidemsg := flag.Bool("hidemsg", false, "隐藏日志")
+	freq := flag.Int("freqmsg", 5, "发消息的频路（秒）")
 	flag.Parse()
 
 	maxClient := *max
 	addr := *ip + ":10911"
 	hideConsoleMsg = *hidemsg
+	freqMsg = *freq
 	// fmt.Println("模拟最大连接数：", maxClient)
 
 	for i:=0; i<maxClient; i++ {
@@ -61,7 +64,7 @@ func socketClient(addr string) {
 	clientClosed := make(chan bool)
 	session := NewSession(conn)
 	count := 0
-	freq := time.Second * 1
+	freq := time.Second * time.Duration(freqMsg)
 
 	go func() {
 		session.Recv(func(data []byte) bool {
