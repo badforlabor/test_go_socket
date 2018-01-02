@@ -10,8 +10,8 @@ import (
 	"sync"
 	"net"
 	"sync/atomic"
-	"comm/log"
 	"encoding/binary"
+	"fmt"
 )
 
 const HeaderSizeOf = 2
@@ -32,33 +32,38 @@ func NewSession(conn net.Conn) *Session {
 			headerBuf:    make([]byte, HeaderSizeOf),
 		}
 }
+func (s *Session) GetID() int32 {
+	return s.sessionId
+}
+
 func (s *Session) Close() error {
 	s.conn.Close()
 	return nil
 }
-func (session *Session) Recv(callback func([]byte)) {
+func (session *Session) Recv(callback func([]byte)bool) {
 	defer session.Close()
 	for {
 		_, err := session.conn.Read(session.headerBuf)
 		if err != nil {
-			log.Errorf("read header error:%s,sessionId:%d", err, session.sessionId)
+			fmt.Printf("read header error:%s,sessionId:%d\n", err, session.sessionId)
 			return
 		}
 		len := binary.LittleEndian.Uint16(session.headerBuf)
 		if len > MaxPacketSize || len < HeaderSizeOf {
-			log.Errorf("协议长度不对：%d", err, session.sessionId)
+			fmt.Printf("协议长度不对：%d\n", err, session.sessionId)
 			return
 		}
 
-		bodyBuf := make([]byte, int(len)-HeaderSizeOf)
+		bodyBuf := make([]byte, int(len))
 		if _, err := session.conn.Read(bodyBuf); err != nil {
-			log.Errorf("read body error:%s,sessionId:%d", err, session.sessionId)
+			fmt.Printf("read body error:%s,sessionId:%d\n", err, session.sessionId)
 			return
 		}
 
-		// 读取到协议体之后，原样返回
-		// send(session, bodyBuf)
-		callback(bodyBuf)
+		// 读取到协议体之后，告知回调函数。如果回调函数返回false，那么就不在Recv了。
+		if !callback(bodyBuf) {
+			break
+		}
 	}
 }
 
@@ -72,7 +77,7 @@ func (session* Session) Send(bodyBuf []byte) {
 	bodySize := len(bodyBuf)
 
 	if bodySize > MaxPacketSize - HeaderSizeOf {
-		log.Errorf("包体太大")
+		fmt.Printf("包体太大\n")
 		return
 	}
 
@@ -85,12 +90,12 @@ func (session* Session) Send(bodyBuf []byte) {
 
 
 	if _, err := session.conn.Write(tmpHeaderBuf); err != nil {
-		log.Errorf("Write send tmpHeaderBuf err %s", err.Error())
+		fmt.Printf("Write send tmpHeaderBuf err %s\n", err.Error())
 		return
 	}
 	if _, err := session.conn.Write(bodyBuf); err != nil {
-		log.Errorf("Write send msgBuf err %s", err.Error())
+		fmt.Printf("Write send msgBuf err %s\n", err.Error())
 		return
 	}
-
+	// fmt.Println("send message succ.")
 }
